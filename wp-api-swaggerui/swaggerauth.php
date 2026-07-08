@@ -27,6 +27,16 @@ class SwaggerAuth {
 
 		$username	 = $server->get( 'PHP_AUTH_USER' );
 		$password	 = $server->get( 'PHP_AUTH_PW' );
+
+		// WP 5.6+ owns generic Basic Auth via Application Passwords; only handle
+		// WooCommerce consumer keys here so we neither shadow it nor fail-auth
+		// server Basic credentials (see #16).
+		global $wp_version;
+		if ( version_compare( $wp_version, '5.6', '>=' )
+			&& ( ! class_exists( 'woocommerce' ) || strpos( (string) $username, 'ck_' ) !== 0 ) ) {
+			return $user_id;
+		}
+
 		/**
 		 * In multi-site, wp_authenticate_spam_check filter is run on authentication. This filter calls
 		 * get_currentuserinfo which in turn calls the determine_current_user filter. This leads to infinite
@@ -94,7 +104,18 @@ class SwaggerAuth {
 $basic = new SwaggerAuth();
 
 add_filter( 'determine_current_user', [ $basic, 'handler' ], 14 );
-add_filter( 'authenticate', [ $basic, 'authenticate' ], 21, 3 );
-add_filter( 'rest_authentication_errors', [ $basic, 'error' ] );
+// Priority 19 runs before core's wp_authenticate_application_password (20) so a
+// WooCommerce key resolves to a user first, preventing core from recording an
+// invalid-application-password error for the ck_ username. See #16.
+add_filter( 'authenticate', [ $basic, 'authenticate' ], 19, 3 );
+
+// Pre-5.6 has no Application Passwords, so surface Basic Auth failures as REST
+// errors. On 5.6+ this hard-blocks the REST API (breaks Elementor, App Passwords),
+// so leave it to WordPress core. See #16.
+global $wp_version;
+if ( version_compare( $wp_version, '5.6', '<' ) ) {
+	add_filter( 'rest_authentication_errors', [ $basic, 'error' ] );
+}
+
 add_filter( 'swagger_api_security_definitions', [ $basic, 'appendSwaggerAuth' ] );
 
