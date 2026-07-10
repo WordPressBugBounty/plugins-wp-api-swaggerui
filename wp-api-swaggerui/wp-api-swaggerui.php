@@ -10,7 +10,7 @@
  * @wordpress-plugin
  * Plugin Name: WP API SwaggerUI
  * Description: WordPress REST API with Swagger UI.
- * Version:     2.0.3
+ * Version:     2.1.1
  * Author:      Agus Suroyo
  * Requires PHP: 7.4
  * License:     GPL v2 or later
@@ -79,8 +79,15 @@ class WP_API_SwaggerUI
             'tags' => [],
             'schemes' => $this->getSchemes(),
             'paths' => $this->getPaths(),
-            'securityDefinitions' => $this->securityDefinitions()
         );
+
+        // Only advertise securityDefinitions when a scheme is enabled. Omitting
+        // the key (rather than emitting an empty map) keeps /schema valid Swagger
+        // 2.0 and stops Swagger UI rendering a stray, empty Authorize dialog.
+        $securityDefinitions = $this->securityDefinitions();
+        if (!empty($securityDefinitions)) {
+            $response['securityDefinitions'] = $securityDefinitions;
+        }
 
         wp_send_json($response);
     }
@@ -234,17 +241,13 @@ class WP_API_SwaggerUI
                     $consumes[] = ['application/json'];
                 }
 
-                if (isset($args['tags']) && is_array($args['tags'])) {
-                    $tags = $args['tags'];
-                }
-
                 $responses =$this->getResponses($methodEndpoint);
                 if (isset($arg['responses'])) {
                     $responses = $arg['responses'];
                 }
 
                 $conf = array(
-                    'tags' => $tags,
+                    'tags' => isset($arg['tags']) ? (array) $arg['tags'] : $tags,
                     'summary' => isset($arg['summary']) ? $arg['summary'] : '',
                     'description' => isset($arg['description']) ? $arg['description'] : '',
                     'consumes' => $consumes,
