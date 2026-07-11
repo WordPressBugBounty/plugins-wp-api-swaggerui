@@ -1,5 +1,5 @@
 <div class="wrap">
-	<h2><?php echo $page_title; ?></h2>
+	<h2><?php echo esc_html( $page_title ); ?></h2>
 	<form action="" method="post">
 		<?php wp_nonce_field( 'swagger_api_setting' ) ?>
 		<table class="form-table">
@@ -30,6 +30,31 @@
 							Bearer (Authorization header)
 						</label>
 						<p class="description">Which authentication methods appear in the Swagger UI Authorize dialog. Bearer requires a token plugin (e.g. JWT) installed to validate requests.</p>
+					</td>
+				</tr>
+				<tr>
+					<th>OpenAPI Version</th>
+					<td>
+						<select name="swagger_api_spec_version">
+							<?php
+							foreach ( $spec_versions as $version ) {
+								?>
+								<option value="<?php echo esc_attr( $version ); ?>" <?php selected( $version, $swagger_api_spec_version ); ?>><?php echo esc_html( $version ); ?></option>
+								<?php
+							}
+							?>
+						</select>
+						<p class="description">Schema output format. 2.0 = Swagger 2.0; 3.0.3 = OpenAPI 3.0.3.</p>
+					</td>
+				</tr>
+				<tr>
+					<th>Contact Email</th>
+					<td>
+						<label>
+							<input type="checkbox" name="swagger_api_expose_contact_email" value="1" <?php checked( '1', $swagger_api_expose_contact_email ); ?>>
+							Include the site admin email as the API contact in the schema
+						</label>
+						<p class="description">Uncheck to omit <code>contact.email</code> from the public schema. Developers can still override via the <code>swagger_api_contact_email</code> filter.</p>
 					</td>
 				</tr>
 				<tr>

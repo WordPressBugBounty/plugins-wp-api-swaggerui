@@ -10,7 +10,7 @@
  * @wordpress-plugin
  * Plugin Name: WP API SwaggerUI
  * Description: WordPress REST API with Swagger UI.
- * Version:     2.1.1
+ * Version:     2.2.0
  * Author:      Agus Suroyo
  * Requires PHP: 7.4
  * License:     GPL v2 or later
@@ -25,6 +25,7 @@ if (version_compare(PHP_VERSION, '7.4', '<') || version_compare($wp_version, '4.
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'swaggerbag.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'swaggerauth.php';
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'swaggertemplate.php';
+require_once __DIR__ . DIRECTORY_SEPARATOR . 'swaggeropenapi.php';
 
 if (is_admin()) {
     require_once __DIR__ . DIRECTORY_SEPARATOR . 'swaggersetting.php';
@@ -64,16 +65,22 @@ class WP_API_SwaggerUI
 
         global $wp_version;
 
+        $expose_email  = '1' === get_option('swagger_api_expose_contact_email', '1');
+        $contact_email = apply_filters('swagger_api_contact_email', $expose_email ? get_option('admin_email') : '');
+
+        $info = array(
+            'title' => get_option('blogname') . ' API',
+            'description' => get_option('blogdescription'),
+            'version' => apply_filters('swagger_api_info_version', $wp_version),
+        );
+        if (!empty($contact_email)) {
+            $info['contact'] = array('email' => $contact_email);
+        }
+
+        // Canonical Swagger 2.0 pivot document. Each formatter stamps its own
+        // version marker (swagger/openapi) and reshapes from here.
         $response = array(
-            'swagger' => '2.0',
-            'info' => array(
-                'title' => get_option('blogname') . ' API',
-                'description' => get_option('blogdescription'),
-                'version' => $wp_version,
-                'contact' => array(
-                    'email' => get_option('admin_email')
-                )
-            ),
+            'info' => $info,
             'host' => $this->getHost(),
             'basePath' => $this->getBasePath(),
             'tags' => [],
@@ -85,11 +92,16 @@ class WP_API_SwaggerUI
         // the key (rather than emitting an empty map) keeps /schema valid Swagger
         // 2.0 and stops Swagger UI rendering a stray, empty Authorize dialog.
         $securityDefinitions = $this->securityDefinitions();
-        if (!empty($securityDefinitions)) {
+        if (is_array($securityDefinitions) && !empty($securityDefinitions)) {
             $response['securityDefinitions'] = $securityDefinitions;
         }
 
-        wp_send_json($response);
+        $formatter = SwaggerSpecRegistry::forVersion(get_option('swagger_api_spec_version', '2.0'));
+        $output    = $formatter->format($response);
+        if (empty($output['paths'])) {
+            $output['paths'] = new \stdClass();
+        }
+        wp_send_json($output);
     }
 
     public function getHost()
@@ -238,7 +250,7 @@ class WP_API_SwaggerUI
                 }
 
                 if ($arg['accept_json']) {
-                    $consumes[] = ['application/json'];
+                    $consumes[] = 'application/json';
                 }
 
                 $responses =$this->getResponses($methodEndpoint);

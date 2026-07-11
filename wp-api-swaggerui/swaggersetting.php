@@ -17,6 +17,15 @@ class SwaggerSetting {
 			$schemes = (array) ( isset( $_POST['swagger_api_auth_schemes'] ) ? $_POST['swagger_api_auth_schemes'] : array() );
 			update_option( 'swagger_api_auth_schemes', array_values( array_intersect( array( 'basic', 'bearer' ), $schemes ) ) );
 
+			if ( isset( $_POST['swagger_api_spec_version'] ) ) {
+				$version = sanitize_text_field( $_POST['swagger_api_spec_version'] );
+				if ( in_array( $version, SwaggerSpecRegistry::versions(), true ) ) {
+					update_option( 'swagger_api_spec_version', $version );
+				}
+			}
+
+			update_option( 'swagger_api_expose_contact_email', isset( $_POST['swagger_api_expose_contact_email'] ) ? '1' : '0' );
+
 			add_action( 'admin_notices', [ $this, 'notices' ] );
 		}
 	}
@@ -33,6 +42,9 @@ class SwaggerSetting {
 		$data['namespaces']				 = rest_get_server()->get_namespaces();
 		$data['docs_url']				 = home_url( untrailingslashit( WP_API_SwaggerUI::rewriteBaseApi() ) . '/docs' );
 		$data['swagger_api_auth_schemes'] = (array) get_option( 'swagger_api_auth_schemes', array( 'basic' ) );
+		$data['spec_versions']			 = SwaggerSpecRegistry::versions();
+		$data['swagger_api_spec_version'] = get_option( 'swagger_api_spec_version', '2.0' );
+		$data['swagger_api_expose_contact_email'] = get_option( 'swagger_api_expose_contact_email', '1' );
 
 		echo self::template( 'setting', $data );
 	}
