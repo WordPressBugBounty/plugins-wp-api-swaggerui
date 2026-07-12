@@ -10,7 +10,7 @@
  * @wordpress-plugin
  * Plugin Name: WP API SwaggerUI
  * Description: WordPress REST API with Swagger UI.
- * Version:     2.3.0
+ * Version:     2.4.0
  * Author:      Agus Suroyo
  * Requires PHP: 7.4
  * License:     GPL v2 or later
@@ -50,6 +50,11 @@ class WP_API_SwaggerUI
     public static function pluginUrl($path = null)
     {
         return plugin_dir_url(__FILE__) . $path;
+    }
+
+    public static function endpointUrl($endpoint)
+    {
+        return add_query_arg('swagger_api', $endpoint, home_url('/'));
     }
 
     public static function pluginPath($path)
@@ -122,6 +127,36 @@ class WP_API_SwaggerUI
     {
         $path = parse_url(home_url(), PHP_URL_PATH) ?? '';
         return rtrim($path, '/') . '/' . ltrim(rest_get_url_prefix(), '/');
+    }
+
+    // Client-side data for rewriting Swagger UI Try-it-out requests to the
+    // ?rest_route= form when permalinks are Plain. rest_url() has no pretty
+    // /wp-json route then, so Swagger UI's server+path URLs 404; the JS
+    // requestInterceptor uses this to rebuild each REST call.
+    //
+    // strip = the URL path Swagger UI prepends for the active spec version.
+    // OpenAPI 3.0 can advertise an honest ?rest_route= server (returned in
+    // 'server'); Swagger 2.0's host+basePath cannot carry a query string, so
+    // it keeps the /wp-json base and only the interceptor makes it work.
+    public static function restRouteConfig()
+    {
+        $rest_root = explode('?', rest_url('/'))[0];
+        $self      = new self();
+
+        if ('3.0.3' === get_option('swagger_api_spec_version', '2.0')) {
+            $server = $rest_root . '?rest_route=';
+            $strip  = parse_url($rest_root, PHP_URL_PATH);
+        } else {
+            $server = null;
+            $strip  = $self->getBasePath();
+        }
+
+        return array(
+            'enabled'  => ! get_option('permalink_structure'),
+            'restRoot' => $rest_root,
+            'strip'    => $strip,
+            'server'   => $server,
+        );
     }
 
     public function getSchemes()
