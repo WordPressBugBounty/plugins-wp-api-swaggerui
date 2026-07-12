@@ -4,7 +4,7 @@ Donate link: https://www.paypal.me/agussuroyo
 Tags: swaggerui, wp swaggerui, wp rest api, wp swagger rest api, swaggerui rest api, swagger rest api, wp swagger, api, swagger, rest api
 Requires at least: 4.7
 Tested up to: 7.0
-Stable tag: 2.2.0
+Stable tag: 2.3.0
 Requires PHP: 7.4
 License: GPL v2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.txt
@@ -19,6 +19,10 @@ Feature:
 
 * Support for GET, POST, PUT, PATCH and DELETE request method
 * Support for Auth Basic authorization method
+* Support for Bearer token (Authorization header) authorization method
+* Choose which authorization methods (Basic / Bearer) appear in the Swagger UI Authorize dialog
+* Output as Swagger 2.0 (default) or OpenAPI 3.0.3
+* Option to include or omit the site admin contact email in the generated schema
 * Choose which namespace API that will be used on the SwaggerUI
 
 == Installation ==
@@ -36,6 +40,12 @@ This plugin can be installed directly from your site.
 2. Options to choose namespace Rest API
 
 == Changelog ==
+
+= 2.3.0 =
+* Fix nested object and array item properties not showing in Swagger UI (recursive schema normalization)
+* Combine registered JSON arguments into a single request body for POST/PUT/PATCH routes
+* Preserve enum, required, format and default across nested schemas; keep file uploads on multipart/form-data
+* Improve OpenAPI 3.0.3 output: move definitions to components.schemas and rewrite $ref targets
 
 = 2.2.0 =
 * Add OpenAPI 3.0.3 output, selectable in Settings → Swagger (default stays Swagger 2.0, so existing installs are unchanged)

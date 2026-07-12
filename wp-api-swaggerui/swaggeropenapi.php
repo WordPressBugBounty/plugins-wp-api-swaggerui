@@ -30,9 +30,21 @@ class Spec30Formatter implements SwaggerSpecFormatter {
 		if ( isset( $spec['securityDefinitions'] ) && is_array( $spec['securityDefinitions'] ) ) {
 			$schemes = $this->mapSecuritySchemes( $spec['securityDefinitions'] );
 			if ( ! empty( $schemes ) ) {
-				$spec['components'] = array( 'securitySchemes' => $schemes );
+				$spec['components']['securitySchemes'] = $schemes;
 			}
 			unset( $spec['securityDefinitions'] );
+		}
+
+		if ( isset( $spec['definitions'] ) && is_array( $spec['definitions'] ) ) {
+			$existing_schemas              = isset( $spec['components']['schemas'] ) && is_array( $spec['components']['schemas'] ) ? $spec['components']['schemas'] : array();
+			$spec['components']['schemas'] = $existing_schemas + $spec['definitions'];
+			unset( $spec['definitions'] );
+		}
+
+		if ( isset( $spec['components']['schemas'] ) && is_array( $spec['components']['schemas'] ) ) {
+			foreach ( $spec['components']['schemas'] as $name => $schema ) {
+				$spec['components']['schemas'][ $name ] = $this->rewriteSchemaRefs( $schema );
+			}
 		}
 
 		if ( isset( $spec['paths'] ) ) {
@@ -40,6 +52,39 @@ class Spec30Formatter implements SwaggerSpecFormatter {
 		}
 
 		return $spec;
+	}
+
+	/**
+	 * Rewrite JSON Reference targets from Swagger 2 (#/definitions/) to OpenAPI 3
+	 * (#/components/schemas/). Descends only through schema keywords, so a "$ref"
+	 * key sitting in literal example/default data is never rewritten.
+	 */
+	private function rewriteSchemaRefs($schema) {
+		if ( ! is_array( $schema ) ) {
+			return $schema;
+		}
+		$prefix = '#/definitions/';
+		if ( isset( $schema['$ref'] ) && is_string( $schema['$ref'] ) && 0 === strpos( $schema['$ref'], $prefix ) ) {
+			$schema['$ref'] = '#/components/schemas/' . substr( $schema['$ref'], strlen( $prefix ) );
+		}
+		foreach ( array( 'items', 'additionalProperties' ) as $key ) {
+			if ( isset( $schema[ $key ] ) && is_array( $schema[ $key ] ) ) {
+				$schema[ $key ] = $this->rewriteSchemaRefs( $schema[ $key ] );
+			}
+		}
+		if ( isset( $schema['properties'] ) && is_array( $schema['properties'] ) ) {
+			foreach ( $schema['properties'] as $name => $sub ) {
+				$schema['properties'][ $name ] = $this->rewriteSchemaRefs( $sub );
+			}
+		}
+		foreach ( array( 'allOf', 'oneOf', 'anyOf' ) as $key ) {
+			if ( isset( $schema[ $key ] ) && is_array( $schema[ $key ] ) ) {
+				foreach ( $schema[ $key ] as $i => $branch ) {
+					$schema[ $key ][ $i ] = $this->rewriteSchemaRefs( $branch );
+				}
+			}
+		}
+		return $schema;
 	}
 
 	private function mapPaths(array $paths): array {
@@ -126,7 +171,7 @@ class Spec30Formatter implements SwaggerSpecFormatter {
 			foreach ( $produces as $m ) {
 				$entry = array();
 				if ( null !== $schema ) {
-					$entry['schema'] = $schema;
+					$entry['schema'] = $this->rewriteSchemaRefs( $schema );
 				}
 				if ( isset( $examples[ $m ] ) ) {
 					$entry['example'] = $examples[ $m ];
@@ -157,7 +202,7 @@ class Spec30Formatter implements SwaggerSpecFormatter {
 		}
 
 		if ( ! empty( $schema ) ) {
-			$param['schema'] = $schema;
+			$param['schema'] = $this->rewriteSchemaRefs( $schema );
 		}
 
 		if ( isset( $schema['type'] ) && 'array' === $schema['type'] ) {
@@ -206,6 +251,7 @@ class Spec30Formatter implements SwaggerSpecFormatter {
 	}
 
 	private function contentFor(array $media, array $schema): array {
+		$schema  = $this->rewriteSchemaRefs( $schema );
 		$content = array();
 		foreach ( $media as $m ) {
 			$content[ $m ] = array( 'schema' => $schema );
@@ -268,6 +314,31 @@ class Spec30Formatter implements SwaggerSpecFormatter {
 			$schema['type']   = 'string';
 			$schema['format'] = 'binary';
 		}
+
+		foreach ( array( 'items', 'schema', 'additionalProperties' ) as $key ) {
+			if ( isset( $schema[ $key ] ) && is_array( $schema[ $key ] ) ) {
+				$schema[ $key ] = $this->normalizeFileSchema( $schema[ $key ] );
+			}
+		}
+
+		if ( isset( $schema['properties'] ) && is_array( $schema['properties'] ) ) {
+			foreach ( $schema['properties'] as $name => $property ) {
+				if ( is_array( $property ) ) {
+					$schema['properties'][ $name ] = $this->normalizeFileSchema( $property );
+				}
+			}
+		}
+
+		foreach ( array( 'allOf', 'oneOf', 'anyOf' ) as $combinator ) {
+			if ( isset( $schema[ $combinator ] ) && is_array( $schema[ $combinator ] ) ) {
+				foreach ( $schema[ $combinator ] as $index => $branch ) {
+					if ( is_array( $branch ) ) {
+						$schema[ $combinator ][ $index ] = $this->normalizeFileSchema( $branch );
+					}
+				}
+			}
+		}
+
 		return $schema;
 	}
 
